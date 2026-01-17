@@ -31,6 +31,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Create .env for build
+        run: |
+          echo "DATABASE_URL=postgresql://user:password@localhost:5432/db" > apps/api/.env
+          echo "JWT_SECRET=test-secret" >> apps/api/.env
+          echo "JWT_EXPIRES_IN=24h" >> apps/api/.env
+
       - name: Lint
         run: pnpm lint
         continue-on-error: true

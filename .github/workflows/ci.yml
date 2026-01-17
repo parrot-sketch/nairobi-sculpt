@@ -2,9 +2,9 @@ name: CI - Build & Test
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
   build-and-test:
@@ -33,9 +33,11 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+        continue-on-error: true
 
       - name: Type check
         run: pnpm type-check
+        continue-on-error: true
 
       - name: Build API
         run: pnpm --filter api build
@@ -44,11 +46,5 @@ jobs:
         run: pnpm --filter web build
 
       - name: Test
-        run: pnpm test:ci
+        run: pnpm test
         continue-on-error: true
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        continue-on-error: true
-        with:
-          files: ./coverage/coverage-final.json

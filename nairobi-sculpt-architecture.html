@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nairobi Sculpt — Architecture Specification</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #111827;
+    --muted: #94a3b8;
+    --text: #e5e7eb;
+    --accent: #22c55e;
+    --border: #1f2937;
+    --code: #0b1220;
+  }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    background: linear-gradient(180deg, #0b1020, #0f172a);
+    color: var(--text);
+  }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+  }
+  .nav {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 12px 20px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    overflow-x: auto;
+  }
+  .nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .nav a:hover { color: white; }
+  .badge {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    font-size: 12px;
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
+  h1 { font-size: 40px; margin-bottom: 8px; }
+  h2 { margin-top: 48px; font-size: 28px; }
+  h3 { margin-top: 28px; font-size: 20px; }
+  p { color: var(--muted); line-height: 1.7; }
+  .card {
+    background: linear-gradient(180deg, #0b1220, #0e1628);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+    margin-top: 20px;
+  }
+  ul li { margin-bottom: 8px; color: var(--muted); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .code {
+    background: var(--code);
+    border: 1px solid var(--border);
+    padding: 16px;
+    border-radius: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: #cbd5e1;
+    overflow-x: auto;
+  }
+  footer {
+    margin-top: 80px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <strong>Nairobi Sculpt</strong>
+    <span class="badge">Architecture Constitution</span>
+    <a href="#overview">Overview</a>
+    <a href="#principles">Principles</a>
+    <a href="#domain">Domain Model</a>
+    <a href="#aggregates">Aggregates</a>
+    <a href="#layers">Architecture Layers</a>
+    <a href="#modules">Module Boundaries</a>
+    <a href="#types">Type System</a>
+    <a href="#repositories">Repositories</a>
+    <a href="#events">Domain Events</a>
+    <a href="#security">Security</a>
+    <a href="#governance">Data Governance</a>
+    <a href="#roadmap">Roadmap</a>
+  </div>
+</header>
+
+<div class="container">
+
+<section id="overview">
+<h1>Architecture Specification</h1>
+<p><strong>Project:</strong> Nairobi Sculpt (Healthcare Platform)</p>
+<p><strong>Purpose:</strong> Define the immutable architectural foundation before feature expansion. This document is the source of truth for structure, boundaries, types, and evolution rules.</p>
+</section>
+
+<section id="principles" class="card">
+<h2>Core Architectural Principles</h2>
+<ul>
+  <li><strong>Domain-first:</strong> Clinical workflows define structure, not frameworks.</li>
+  <li><strong>Explicit boundaries:</strong> No hidden coupling between modules.</li>
+  <li><strong>Security by default:</strong> RBAC, ownership checks, auditability are mandatory.</li>
+  <li><strong>Type safety everywhere:</strong> No raw Prisma models escape infrastructure.</li>
+  <li><strong>Evolution over rewrites:</strong> Design supports incremental growth.</li>
+</ul>
+</section>
+
+<section id="domain" class="card">
+<h2>Core Domain Model</h2>
+<p>The system is modeled around <strong>clinical workflow</strong>. The central real-world event is a <strong>Visit</strong>.</p>
+<ul>
+  <li>Appointment schedules a future Visit</li>
+  <li>Visit encapsulates Procedures + MedicalRecords</li>
+  <li>Visit produces Invoices</li>
+  <li>Payments settle Invoices</li>
+</ul>
+</section>
+
+<section id="aggregates" class="card">
+<h2>Aggregate Roots</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Visit (Primary)</h3>
+    <ul>
+      <li>Owns Procedures</li>
+      <li>Owns MedicalRecords</li>
+      <li>Produces Invoice</li>
+      <li>Immutable audit trail</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Patient</h3>
+    <ul>
+      <li>Owns demographic profile</li>
+      <li>Views history</li>
+      <li>Cannot mutate clinical data</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Invoice</h3>
+    <ul>
+      <li>Tracks balance</li>
+      <li>Transitions via Payments</li>
+      <li>Immutable financial records</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>User</h3>
+    <ul>
+      <li>Authentication identity</li>
+      <li>RBAC source</li>
+      <li>Links to Doctor/Patient</li>
+    </ul>
+  </div>
+</div>
+</section>
+
+<section id="layers" class="card">
+<h2>Architecture Layers</h2>
+<ul>
+  <li><strong>Domain Layer:</strong> Pure types, invariants, entities, events</li>
+  <li><strong>Application Layer:</strong> Use-cases, orchestration, service contracts</li>
+  <li><strong>Infrastructure Layer:</strong> Prisma, NestJS, controllers, adapters</li>
+</ul>
+<div class="code">
+domain/ → entities, value objects, events<br/>
+application/ → services, ports, usecases<br/>
+infrastructure/ → prisma, controllers, modules
+</div>
+</section>
+
+<section id="modules" class="card">
+<h2>Module Boundary Rules</h2>
+<ul>
+  <li>Modules may not import Prisma directly</li>
+  <li>Cross-module calls go through exported application services</li>
+  <li>Controllers only call Application Layer</li>
+  <li>No Infrastructure dependency inside Domain</li>
+</ul>
+</section>
+
+<section id="types" class="card">
+<h2>Type System Strategy</h2>
+<ul>
+  <li>Domain Types (pure TypeScript, no decorators)</li>
+  <li>DTOs for API boundaries (class-validator enforced)</li>
+  <li>Prisma models remain infrastructure-only</li>
+  <li>Explicit mapping functions required</li>
+</ul>
+</section>
+
+<section id="repositories" class="card">
+<h2>Repository Pattern</h2>
+<p>Repositories abstract persistence:</p>
+<div class="code">
+interface VisitRepository {<br/>
+&nbsp;&nbsp;findById(id: VisitId): Promise&lt;Visit | null&gt;<br/>
+&nbsp;&nbsp;save(visit: Visit): Promise&lt;void&gt;<br/>
+}
+</div>
+</section>
+
+<section id="events" class="card">
+<h2>Domain Events</h2>
+<ul>
+  <li>VisitCompleted → InvoiceGenerated</li>
+  <li>PaymentRecorded → InvoiceStatusUpdated</li>
+  <li>MedicalRecordCreated → AuditEventEmitted</li>
+</ul>
+</section>
+
+<section id="security" class="card">
+<h2>Security Guarantees</h2>
+<ul>
+  <li>RBAC enforced at controller + service</li>
+  <li>Ownership verified on all sensitive reads</li>
+  <li>All mutations audited</li>
+  <li>Soft delete for compliance</li>
+  <li>No data leakage via errors</li>
+</ul>
+</section>
+
+<section id="governance" class="card">
+<h2>Data Governance</h2>
+<ul>
+  <li>HIPAA-aligned retention via soft deletes</li>
+  <li>Immutable audit logs</li>
+  <li>Explicit data ownership</li>
+  <li>Traceability of every mutation</li>
+</ul>
+</section>
+
+<section id="roadmap" class="card">
+<h2>Next Phases</h2>
+<ul>
+  <li>Introduce domain folder + types</li>
+  <li>Refactor services to application layer</li>
+  <li>Add repository abstractions</li>
+  <li>Introduce event bus</li>
+  <li>Formalize invariants per aggregate</li>
+</ul>
+</section>
+
+<footer>
+<p>Generated Architecture Constitution — Nairobi Sculpt</p>
+<p>This document should evolve carefully and intentionally. Treat as engineering law.</p>
+</footer>
+
+</div>
+</body>
+</html>

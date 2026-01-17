@@ -1,0 +1,35 @@
+{
+  "name": "nairobi-sculpt",
+  "version": "1.0.0",
+  "description": "Production-ready aesthetic surgery management system for Nairobi Sculpt",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build --parallel",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\" --ignore-unknown",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "test:cov": "turbo run test:cov",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "keywords": [
+    "aesthetic",
+    "surgery",
+    "management",
+    "nairobi-sculpt"
+  ],
+  "author": "Nairobi Sculpt Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "@typescript-eslint/eslint-plugin": "^8.46.4",
+    "@typescript-eslint/parser": "^8.46.4",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.0",
+    "turbo": "^2.7.4",
+    "typescript": "^5.9.3"
+  }
+}

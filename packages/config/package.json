@@ -1,0 +1,19 @@
+{
+  "name": "@nairobi-sculpt/config",
+  "version": "1.0.0",
+  "description": "Shared configuration for Nairobi Sculpt",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --fix"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.2"
+  }
+}

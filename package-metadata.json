@@ -1,0 +1,14 @@
+{
+  "name": "Nairobi Sculpt",
+  "description": "Production-ready aesthetic surgery management system",
+  "license": "MIT",
+  "author": "Nairobi Sculpt Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nairobi-sculpt/nairobi-sculpt"
+  },
+  "bugs": {
+    "url": "https://github.com/nairobi-sculpt/nairobi-sculpt/issues"
+  },
+  "homepage": "https://nairobi-sculpt.com"
+}

@@ -1,0 +1,32 @@
+# Normalize line endings across platforms
+* text=auto
+
+# Text files
+*.md text
+*.js text
+*.ts text
+*.tsx text
+*.jsx text
+*.json text
+*.css text
+*.scss text
+*.sql text
+*.html text
+*.yml text
+*.yaml text
+.env.example text
+.gitignore text
+.gitattributes text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.eot binary
+*.otf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary

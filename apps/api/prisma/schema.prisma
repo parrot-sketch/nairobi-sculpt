@@ -1,0 +1,453 @@
+// Nairobi Sculpt - Production-Grade Clinic Management System
+// Prisma Schema - Domain-Driven Design for HIPAA-aware Healthcare
+// Revision: Corrected schema with Visit, Payment, and detailed audit trail
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== AUTHENTICATION & AUTHORIZATION ====================
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String
+  role      UserRole   @default(PATIENT)
+  isActive  Boolean    @default(true)
+  deletedAt DateTime?  // Soft delete for HIPAA retention
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  userProfile    UserProfile?
+  patient        Patient?
+  doctor         Doctor?
+  auditLogs      AuditLog[]
+  auditLogsAsTarget AuditLogDetail[] @relation("changedByUser")
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([deletedAt])
+}
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  FRONTDESK
+  ADMIN
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Doctor-specific
+  licenseNumber   String?   @unique
+  specialization  String?
+  bio             String?
+  
+  // Patient-specific
+  dateOfBirth     DateTime?
+  gender          String?
+  bloodType       String?
+  allergies       String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+  
+  // FrontDesk-specific
+  department      String?
+  
+  profileImageUrl String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([licenseNumber])
+}
+
+// ==================== CLINICAL ENTITIES ====================
+
+model Patient {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Clinical contacts
+  appointments  Appointment[]
+  visits        Visit[]
+  medicalRecords MedicalRecord[]
+  invoices      Invoice[]
+  procedures    Procedure[]  // Procedures performed on this patient
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([deletedAt])
+}
+
+model Doctor {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  appointments  Appointment[]
+  visits        Visit[]
+  procedures    Procedure[]  // Procedures performed by this doctor
+  medicalRecords MedicalRecord[] @relation("doctorCreated")
+  schedules     DoctorSchedule[]
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([deletedAt])
+}
+
+// ==================== SCHEDULING ====================
+
+model DoctorSchedule {
+  id        String   @id @default(cuid())
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  dayOfWeek Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime String   // HH:mm (e.g., "09:00")
+  endTime   String   // HH:mm (e.g., "17:00")
+  
+  isAvailable Boolean @default(true)
+  notes     String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, dayOfWeek])
+  @@index([doctorId])
+}
+
+// ==================== APPOINTMENT → VISIT WORKFLOW ====================
+
+model Appointment {
+  id        String              @id @default(cuid())
+  patientId String
+  doctorId  String
+  
+  patient   Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor    Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  // Appointment metadata
+  reason    String?             // Patient's stated reason
+  notes     String?             // Front desk / doctor notes
+  
+  // Scheduling state machine
+  status    AppointmentStatus   @default(REQUESTED)
+  scheduledTime DateTime?        // Set when SCHEDULED
+  
+  // Link to clinical visit (optional; appointment may not result in visit)
+  visitId   String?             @unique
+  visit     Visit?              @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([scheduledTime])
+  @@index([deletedAt])
+}
+
+enum AppointmentStatus {
+  REQUESTED   // Patient requested, no time set
+  SCHEDULED   // Front desk assigned time
+  CONFIRMED   // Doctor confirmed
+  COMPLETED   // Appointment happened
+  CANCELLED   // Cancelled by patient or doctor
+  NO_SHOW     // Patient did not attend
+}
+
+// ==================== CLINICAL VISIT (Core Event) ====================
+
+model Visit {
+  id        String   @id @default(cuid())
+  patientId String
+  doctorId  String
+  
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  // Visit came from appointment (optional)
+  appointmentId String? @unique
+  appointment   Appointment?
+  
+  // Clinical content
+  visitType   VisitType    @default(CONSULTATION)
+  reason      String?      // Chief complaint
+  diagnosis   String?      // Doctor's assessment
+  notes       String?      // Clinical notes
+  
+  // Vitals / measurements
+  bloodPressure String?    // e.g., "120/80"
+  heartRate     Int?
+  temperature   Float?
+  weight        Float?
+  
+  // Clinical outcomes
+  procedures    Procedure[]
+  medicalRecords MedicalRecord[]
+  
+  // Billing
+  invoices      Invoice[]
+  
+  visitDate     DateTime
+  status        VisitStatus @default(COMPLETED)
+  
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([visitDate])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+enum VisitType {
+  CONSULTATION       // Initial consultation
+  FOLLOW_UP          // Follow-up visit
+  PROCEDURE_FOLLOW_UP // Post-procedure check
+  EMERGENCY          // Emergency/urgent visit
+}
+
+enum VisitStatus {
+  COMPLETED    // Visit finished normally
+  INCOMPLETE   // Visit started but not completed
+  CANCELLED    // Visit cancelled
+}
+
+// ==================== CLINICAL PROCEDURES ====================
+
+model Procedure {
+  id        String     @id @default(cuid())
+  patientId String
+  doctorId  String
+  visitId   String     // Procedure must be part of a visit
+  
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor    Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  visit     Visit      @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  
+  // Procedure details
+  name        String     // e.g., "Botox Injection", "Liposuction", "Filler Treatment"
+  description String?
+  code        String?    // Medical procedure code (ICD-9/CPT)
+  
+  // Status
+  status      ProcedureStatus @default(PLANNED)
+  
+  // Cost
+  baseCost    Decimal    @default(0)  // Cost to clinic/doctor
+  
+  notes       String?
+  
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([visitId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+enum ProcedureStatus {
+  PLANNED      // Scheduled but not started
+  IN_PROGRESS  // Currently being performed
+  COMPLETED    // Finished successfully
+  CANCELLED    // Cancelled before completion
+  POSTPONED    // Rescheduled
+}
+
+// ==================== MEDICAL RECORDS ====================
+
+model MedicalRecord {
+  id        String   @id @default(cuid())
+  patientId String
+  doctorId  String   // Doctor who created/owns the record
+  visitId   String?  // Optional: which visit generated this record
+  
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor    Doctor   @relation("doctorCreated", fields: [doctorId], references: [id], onDelete: Cascade)
+  visit     Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  
+  // Record type
+  recordType MedicalRecordType @default(GENERAL_NOTE)
+  
+  // Content
+  title     String?
+  content   String           // Clinical notes, assessment, etc.
+  
+  // Sensitive data
+  isConfidential Boolean @default(false)
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([visitId])
+  @@index([recordType])
+  @@index([deletedAt])
+}
+
+enum MedicalRecordType {
+  GENERAL_NOTE
+  DIAGNOSIS
+  TREATMENT_PLAN
+  LAB_RESULT
+  PRESCRIPTION
+  ALLERGY_ALERT
+  PROGRESS_NOTE
+}
+
+// ==================== BILLING & PAYMENTS ====================
+
+model Invoice {
+  id        String   @id @default(cuid())
+  patientId String
+  visitId   String?  // Optional: which visit generated this invoice
+  
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  visit     Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  
+  // Invoice content
+  invoiceNumber String   @unique
+  description   String   // What was billed for
+  amount        Decimal  // Total amount due
+  
+  // Status
+  status        InvoiceStatus @default(DRAFT)
+  
+  // Payments against this invoice
+  payments      Payment[]
+  
+  // Dates
+  issuedAt      DateTime?
+  dueAt         DateTime?
+  paidAt        DateTime?
+  notes         String?
+  
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([visitId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([deletedAt])
+}
+
+enum InvoiceStatus {
+  DRAFT       // Being prepared
+  ISSUED      // Sent to patient
+  PARTIALLY_PAID
+  PAID        // Fully paid
+  OVERDUE     // Past due date
+  CANCELLED   // Cancelled/voided
+  REFUNDED    // Refunded to patient
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  // Payment details
+  amount    Decimal  // Amount paid (may be partial)
+  method    PaymentMethod
+  
+  // Reference
+  transactionId String?  // Reference from payment processor
+  notes     String?
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([method])
+  @@index([transactionId])
+  @@index([deletedAt])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CHECK
+  OTHER
+}
+
+// ==================== AUDIT & COMPLIANCE ====================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // What happened
+  action    String   // e.g., "PATIENT_CREATED", "APPOINTMENT_SCHEDULED", "INVOICE_PAID"
+  resource  String   // e.g., "Appointment", "Invoice", "MedicalRecord"
+  resourceId String?  // ID of affected resource
+  
+  // Context
+  changes   AuditLogDetail[]  // Detailed field-level changes
+  summary   String?           // Human-readable summary
+  ipAddress String?
+  userAgent String?
+  
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+// Detailed change audit: track each field that changed
+model AuditLogDetail {
+  id        String   @id @default(cuid())
+  auditLogId String
+  auditLog  AuditLog @relation(fields: [auditLogId], references: [id], onDelete: Cascade)
+  
+  fieldName String   // e.g., "status", "amount", "diagnosis"
+  oldValue  String?  // Previous value (serialized)
+  newValue  String?  // New value (serialized)
+  
+  changedByUserId String?  // Optional: specific user field change if multi-user
+  changedByUser   User?    @relation("changedByUser", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+
+  @@index([auditLogId])
+  @@index([fieldName])
+}
